@@ -1,0 +1,117 @@
+<html lang='en'>
+  <head></head>
+  <body></body>
+  <script type='module'>
+    // Calling the regl module with no arguments creates a full screen canvas and
+    // WebGL context, and then uses this context to initialize a new REGL instance
+    
+    import createRegl from 'regl'
+    import frag from './frag.glsl'
+    import vert from './vert.glsl'
+
+    const regl = createRegl()
+
+    let state = 0
+
+    let mouseX = 0;
+    let mouseY = 0;
+    let waveFreq = 1.0;
+    let waveAmp = 1.0;
+    let noiseMult = 6.0;
+    let noiseMod = 1.0;
+
+    function getVideo() {
+      const videoEl = document.createElement('video');
+      //videoEl.width = videoEl.height = 512 
+
+      // request video stream
+      navigator.mediaDevices.getUserMedia({
+        video:true
+      }).then( stream => {
+        videoEl.srcObject = stream
+        
+        // wait until video plays to init / run regl
+        // otherwise it throws an error
+        videoEl.play().then( ()=> {
+          init()
+          run()
+        })
+      })
+
+      return videoEl 
+    }
+
+ 
+    const video = getVideo()
+    let drawTriangle
+
+    const init = function() {
+
+      window.onmousemove = function(event) {
+        mouseX = event.x;
+        mouseY = event.y;
+      }
+
+      window.onkeydown = function(event) {
+        switch (event.key) {
+          case 'ArrowLeft':
+            waveFreq -= .1;
+            break;
+          case 'ArrowRight':
+            waveFreq += .1;
+            break;
+          case 'ArrowUp':
+            waveAmp += .1;
+            break;
+          case 'ArrowDown':
+            if (waveAmp > 0.0) waveAmp -= .1;
+            break;
+          case 'n':
+            if (noiseMult >= 7.0) {
+              noiseMod = -.05;
+            }
+            else if (noiseMult <= 0.0) {
+              noiseMod = .05;
+            }
+            noiseMult += noiseMod;
+            console.log(noiseMult);
+            break;
+        }
+
+      }
+
+      drawTriangle = regl({
+        frag, vert,
+
+        attributes: {
+          position: regl.buffer([
+            [-1,-1],  // no need to flatten nested arrays, regl automatically
+            [-1, 1],  // unrolls them into a typedarray (default Float32)
+            [1,  1],
+            [1, -1],
+            [1,  1],
+            [-1,-1]
+           ])
+        },
+
+        uniforms: {
+          time:       regl.context('time'),
+          resolution: [regl.context('drawingBufferWidth'), regl.context('drawingBufferHeight')],
+          texture:    regl.prop('video'),
+          mouse: [function () {return mouseX}, function () {return mouseY}],
+          freq: function () {return waveFreq},
+          amp: function () {return waveAmp},
+          noise_mult: function () {return noiseMult}
+        },
+
+        count: 6
+      })
+    }
+
+    const run = function() {
+      regl.frame( args => {
+        drawTriangle({ video: regl.texture( video ) })
+      })
+    }
+  </script>
+</html>
